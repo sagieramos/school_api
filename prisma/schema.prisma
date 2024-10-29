@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,28 +7,448 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Post {
+enum DayOfWeek {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+model Gender {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  students  Student[]  @relation("GenderStudents")
+  teachers  Teacher[]  @relation("GenderTeachers")
+  guardians Guardian[] @relation("GenderGuardians")
+}
+
+model Country {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50)
+  code String @unique @db.VarChar(3)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  School    School[]
+}
+
+model School {
+  id           Int     @id @default(autoincrement())
+  countryId    Int     @map("country_id")
+  name         String  @map("school_name") @db.VarChar(50)
+  phoneOne     String  @unique @map("phone_one")
+  phoneTwo     String? @map("phone_two")
+  emailAddress String? @map("email_address")
+  onTrial      Boolean @default(false)
+  schoolLogo   String? @map("school_logo")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  country Country @relation(fields: [countryId], references: [id])
+
+  subscriptions Subscription[] @relation("SchoolSubscriptions")
+  students      Student[]      @relation("SchoolStudents")
+  exams         Exam[]         @relation("SchoolExams")
+  schoolFees    SchoolFee[]    @relation("SchoolFees")
+  Teacher       Teacher[]      @relation("SchoolTeachers")
+  classes       Class[]        @relation("SchoolClasses")
+  timetables    Timetable[]    @relation("SchoolTimetables")
+}
+
+model PaymentMethod {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[] @relation("PaymentMethodSubscriptions")
+  SchoolFee     SchoolFee[]    @relation("PaymentSchoolFees")
+
+  @@map("payment_method")
+}
+
+model Subscription {
+  id              Int      @id @default(autoincrement())
+  schoolId        Int      @map("school_id")
+  paymentMethodId Int      @map("payment_method_id")
+  expiredAt       DateTime @map("expired_at")
+  price           Float
+  status          Boolean  @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  paymentMethod PaymentMethod @relation("PaymentMethodSubscriptions", fields: [paymentMethodId], references: [id])
+  school        School        @relation("SchoolSubscriptions", fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([paymentMethodId])
+  @@map("subscription")
+}
+
+model Student {
+  id             Int      @id @default(autoincrement())
+  schoolId       Int      @map("school_id")
+  genderId       Int      @map("gender_id")
+  givenName      String   @map("given_name")
+  middleName     String?  @map("middle_name")
+  surname        String
+  dateOfBirth    DateTime @map("date_of_birth")
+  enrollmentDate DateTime @map("enrollment_date")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school           School             @relation("SchoolStudents", fields: [schoolId], references: [id])
+  gender           Gender             @relation("GenderStudents", fields: [genderId], references: [id])
+  SchoolFee        SchoolFee[]        @relation("StudentSchoolFees")
+  StudentYearLevel StudentYearLevel[] @relation("YearLevelStudentYearLevels")
+  exams            Exam[]             @relation("StudentExams")
+  guardians        StudentGuardian[]  @relation("GuardianGuardians")
+  Attendance       Attendance[]
+}
+
+model SchoolFee {
+  id              Int     @id @default(autoincrement())
+  schoolId        Int     @map("school_id")
+  studentId       Int     @map("student_id")
+  yearLevelId     Int     @map("year_level_id")
+  termId          Int     @map("term_id")
+  paymentMethodId Int     @map("payment_method_id")
+  description     String? @default("") @db.VarChar(100)
+  balance         Float   @default(0)
+  isPaid          Boolean @default(false) @map("is_paid")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  paymentMethod PaymentMethod? @relation("PaymentSchoolFees", fields: [paymentMethodId], references: [id])
+
+  school    School    @relation("SchoolFees", fields: [schoolId], references: [id])
+  student   Student   @relation("StudentSchoolFees", fields: [studentId], references: [id])
+  yearLevel YearLevel @relation("YearLevelSchoolFees", fields: [yearLevelId], references: [id])
+  term      Term      @relation("TermSchoolFees", fields: [termId], references: [id])
+
+  @@map("school_fee")
+}
+
+model TermType {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  terms Term[] @relation("TermTypes")
+
+  @@map("term_type")
+}
+
+model Term {
+  id         Int      @id @default(autoincrement())
+  yearId     Int      @map("year_id")
+  termTypeId Int      @map("term_type_id")
+  startDate  DateTime @map("start_date")
+  endDate    DateTime @map("end_date")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  year       SchoolYear  @relation("SchoolYearTerms", fields: [yearId], references: [id])
+  termType   TermType    @relation("TermTypes", fields: [termTypeId], references: [id])
+  SchoolFee  SchoolFee[] @relation("TermSchoolFees")
+  exams      Exam[]      @relation("TermExams")
+  classes    Class[]     @relation("TermClasses")
+  timetables Timetable[] @relation("TermTimetables")
+}
+
+model YearLevel {
+  id        Int    @id @default(autoincrement())
+  levelName String @map("level_name") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  studentYearLevels StudentYearLevel[] @relation("YearLevelStudentYearLevels")
+  exams             Exam[]             @relation("YearLevelExams")
+  SchoolFee         SchoolFee[]        @relation("YearLevelSchoolFees")
+  classes           Class[]            @relation("YearLevelClasses")
+  timetables        Timetable[]        @relation("YearLevelTimetables")
+
+  @@map("year_level")
+}
+
+model SchoolYear {
+  id               Int                @id @default(autoincrement())
+  startDate        DateTime           @map("start_date")
+  endDate          DateTime           @map("end_date")
+  name             String             @map("year_name") @db.VarChar(50)
+  terms            Term[]             @relation("SchoolYearTerms")
+  StudentYearLevel StudentYearLevel[] @relation("SchoolYearStudentYearLevels")
+}
+
+model StudentYearLevel {
+  id           Int    @id @default(autoincrement())
+  studentId    Int    @map("student_id")
+  levelId      Int    @map("level_id")
+  schoolYearId Int?   @map("school_year_id")
+  score        Float?
+
+  student    Student     @relation("YearLevelStudentYearLevels", fields: [studentId], references: [id])
+  yearLevel  YearLevel   @relation("YearLevelStudentYearLevels", fields: [levelId], references: [id])
+  schoolYear SchoolYear? @relation("SchoolYearStudentYearLevels", fields: [schoolYearId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("student_year_level")
+}
+
+//
+
+model Grade {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  exams Exam[] @relation("GradeExams")
+
+  @@map("grade")
+}
+
+model Exam {
+  id          Int @id @default(autoincrement())
+  termId      Int @map("term_id")
+  studentId   Int @map("student_id")
+  yearLevelId Int @map("year_level_id")
+  subjectId   Int @map("subject_id")
+  schoolId    Int @map("school_id")
+
+  gradeId Int?     @map("grade_id")
+  remark  String?
+  score   Decimal?
+
+  term      Term      @relation("TermExams", fields: [termId], references: [id])
+  student   Student   @relation("StudentExams", fields: [studentId], references: [id])
+  yearLevel YearLevel @relation("YearLevelExams", fields: [yearLevelId], references: [id])
+  subject   Subject   @relation(fields: [subjectId], references: [id], name: "SubjectExams")
+  school    School    @relation("SchoolExams", fields: [schoolId], references: [id])
+  grade     Grade?    @relation("GradeExams", fields: [gradeId], references: [id])
+
+  @@map("exam")
+}
+
+model Department {
+  id   Int    @id @default(autoincrement())
+  name String @unique @map("department_name") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subjects Subject[] @relation("DepartmentSubjects")
+
+  @@map("department")
+}
+
+model Subject {
+  id           Int    @id @default(autoincrement())
+  name         String @map("subject_name") @db.VarChar(50)
+  departmentId Int?   @map("department_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  department Department? @relation("DepartmentSubjects", fields: [departmentId], references: [id])
+  exams      Exam[]      @relation("SubjectExams")
+  notes      Note[]      @relation("SubjectNotes")
+  classes    Class[]     @relation("SubjectClasses")
+  timetables Timetable[] @relation("SubjectTimetables")
+
+  @@map("subject")
+}
+
+//
+
+model Teacher {
+  id           Int     @id @default(autoincrement())
+  schoolId     Int     @map("school_id")
+  givenName    String  @map("given_name") @db.VarChar(50)
+  surname      String  @db.VarChar(50)
+  genderId     Int     @map("gender_id")
+  emailAddress String  @unique @map("email_address") @db.VarChar(100)
+  phoneNumber  String? @default("") @map("phone_number") @db.VarChar(20)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school            School      @relation("SchoolTeachers", fields: [schoolId], references: [id])
+  gender            Gender      @relation("GenderTeachers", fields: [genderId], references: [id])
+  notes             Note[]      @relation("TeacherNotes")
+  classes           Class[]     @relation("TeacherClasses")
+  teacherTimetables Timetable[] @relation("TeacherTimetables")
+}
+
+//
+
+model GuardianType {
+  id   Int    @id @default(autoincrement())
+  name String @unique @map("guardian_type_name") @db.VarChar(50)
+
+  guardians StudentGuardian[] @relation("GuardianTypeGuardians")
+
+  @@map("guardian_type")
+}
+
+model Guardian {
+  id           Int     @id @default(autoincrement())
+  genderId     Int     @map("gender_id")
+  givenName    String  @map("given_name") @db.VarChar(50)
+  surname      String  @db.VarChar(50)
+  emailAddress String  @unique @map("email_address") @db.VarChar(100)
+  phoneNumber  String? @map("phone_number") @db.VarChar(20)
+
+  studentGuardians StudentGuardian[] @relation("GuardianGuardians")
+  gender           Gender            @relation("GenderGuardians", fields: [genderId], references: [id])
+
+  @@map("guardian")
+}
+
+model StudentGuardian {
+  id             Int @id @default(autoincrement())
+  studentId      Int @map("student_id")
+  guardianId     Int @map("guardian_id")
+  guardianTypeId Int @map("guardian_type_id")
+
+  student      Student      @relation("GuardianGuardians", fields: [studentId], references: [id])
+  guardian     Guardian     @relation("GuardianGuardians", fields: [guardianId], references: [id])
+  guardianType GuardianType @relation("GuardianTypeGuardians", fields: [guardianTypeId], references: [id])
+
+  @@map("student_guardian")
+}
+
+model Classroom {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  class      Class[]     @relation("ClassroomClasses")
+  timetables Timetable[] @relation("ClassroomTimetables")
+
+  @@map("classroom")
+}
+
+model Class {
+  id           Int     @id @default(autoincrement())
+  timetableId   Int?    @map("timetable_id")
+  schoolId     Int     @map("school_id")
+  yearLevelId  Int     @map("year_level_id")
+  termId       Int     @map("term_id")
+  classroomId  Int     @map("classroom_id")
+  teacherId    Int     @map("teacher_id")
+  subjectId    Int     @map("subject_id")
+  isElective   Boolean @default(false) @map("is_elective")
+  isCore       Boolean @default(false) @map("is_core")
+  isCompulsory Boolean @default(false) @map("is_compulsory")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school      School       @relation("SchoolClasses", fields: [schoolId], references: [id])
+  yearLevel   YearLevel    @relation("YearLevelClasses", fields: [yearLevelId], references: [id])
+  classroom   Classroom    @relation("ClassroomClasses", fields: [classroomId], references: [id])
+  teacher     Teacher      @relation("TeacherClasses", fields: [teacherId], references: [id])
+  subject     Subject      @relation("SubjectClasses", fields: [subjectId], references: [id])
+  timetable   Timetable?   @relation("TimetableClasses", fields: [timetableId], references: [id])
+  terms       Term         @relation("TermClasses", fields: [termId], references: [id])
+  assignments Assignment[] @relation("ClassAssignments")
+  attendances Attendance[] @relation("ClassAttendance")
+
+  @@map("class")
+}
+
+model Note {
+  id          Int     @id @default(autoincrement())
+  teacherId   Int     @map("teacher_id")
+  subjectId   Int     @map("subject_id")
+  title       String  @db.VarChar(100)
+  writtenNote String? @map("written_note") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subject     Subject      @relation("SubjectNotes", fields: [subjectId], references: [id])
+  teacher     Teacher      @relation("TeacherNotes", fields: [teacherId], references: [id])
+  assignments Assignment[] @relation("NoteAssignments")
+
+  @@map("note")
+}
+
+model Assignment {
+  id      Int    @id @default(autoincrement())
+  noteId  Int    @map("note_id")
+  classId Int    @map("class_id")
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  note  Note  @relation("NoteAssignments", fields: [noteId], references: [id])
+  class Class @relation("ClassAssignments", fields: [classId], references: [id])
+
+  @@map("assignment")
+}
+
+model Attendance {
   id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  title     String   @db.VarChar(255)
-  content   String?
-  published Boolean  @default(false)
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  Int
+  classId   Int?     @map("class_id")
+  studentId Int      @map("student_id")
+  date      DateTime @map("date")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  class   Class?  @relation("ClassAttendance", fields: [classId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@map("attendance")
 }
 
-model Profile {
-  id     Int     @id @default(autoincrement())
-  bio    String?
-  user   User    @relation(fields: [userId], references: [id])
-  userId Int     @unique
-}
+model Timetable {
+  id          Int  @id @default(autoincrement())
+  schoolId    Int  @map("school_id")
+  yearLevelId Int  @map("year_level_id")
+  termId      Int  @map("term_id")
+  subjectId   Int  @map("subject_id")
+  teacherId   Int? @map("teacher_id")
+  classRoomId Int  @map("class_room_id")
 
-model User {
-  id      Int      @id @default(autoincrement())
-  email   String   @unique
-  name    String?
-  posts   Post[]
-  profile Profile?
+  startTime DateTime  @map("start_time")
+  endTime   DateTime  @map("end_time")
+  dayOfWeek DayOfWeek @map("day_of_week")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school    School    @relation("SchoolTimetables", fields: [schoolId], references: [id])
+  yearLevel YearLevel @relation("YearLevelTimetables", fields: [yearLevelId], references: [id])
+  term      Term      @relation("TermTimetables", fields: [termId], references: [id])
+  subject   Subject   @relation("SubjectTimetables", fields: [subjectId], references: [id])
+  teacher   Teacher?  @relation("TeacherTimetables", fields: [teacherId], references: [id])
+  classroom Classroom @relation("ClassroomTimetables", fields: [classRoomId], references: [id])
+
+  class Class[] @relation("TimetableClasses")
+
+  @@unique([schoolId, termId, yearLevelId, classRoomId, subjectId, dayOfWeek, startTime, endTime], name: "unique_classroom_timetable_slot")
+  @@index([schoolId, termId], name: "idx_school_term")
+  @@map("timetable")
 }
